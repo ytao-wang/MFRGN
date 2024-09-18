@@ -1,6 +1,6 @@
 This repo contains the official implementation of the ACM MM 2024 paper
 
-##### MFRGN: Multi-scale Feature Representation Generalization Network For Ground-to-Aerial Geo-localization
+### MFRGN: Multi-scale Feature Representation Generalization Network For Ground-to-Aerial Geo-localization
 
 <center>Yuntao Wang, Jinpu Zhang, Ruonan Wei, Wenbo Gao, Yuehuan Wang*</center>
 
