@@ -8,6 +8,7 @@ from torchvision.models._utils import IntermediateLayerGetter
 import timm
 import numpy as np
 
+# sys.path.append("/mnt2/wangyuntao/geoLoc/model")
 from .common import scTransformerLayer, scTransformerEncoder, PositionEncodingSine, PSP
 
 # sys.path.append("..")
@@ -68,7 +69,6 @@ class Backbone(nn.Module):
             self.data_config = None
         elif 'convnext' in self.name.lower():
             self.backbone = timm.create_model(self.name, pretrained=True, num_classes = 0, pretrained_cfg_overlay=dict(file=bk_checkpoint))
-            # self.model = timm.create_model(model_name, pretrained=True, num_classes=0) # raise huggingface_hub.utils._errors
             self.data_config = timm.data.resolve_model_data_config(self.backbone)
             if return_interm_layers:
                 self.strides = [8, 16, 32]
@@ -96,6 +96,7 @@ class Backbone(nn.Module):
             x1 = self.backbone.stages[1](x0)
             x2 = self.backbone.stages[2](x1)
             x3 = self.backbone.stages[3](x2)
+            # print(x.shape, x0.shape, x1.shape, x2.shape, x3.shape)
 
             out = [x1, x2, x3]
         return out
@@ -142,11 +143,13 @@ class BackboneEmbed(nn.Module):
             srcs.append(src)
             p = self.pos_embed(src)
             feats_embed.append(p)
+            # feats_embed.append(p.flatten(2).transpose(1, 2))
         if self.return_interm_layers:
             src = self.input_proj[-1](features[-1])
             srcs.append(src)
             p = self.pos_embed(src)
             feats_embed.append(p)
+            # feats_embed.append(p.flatten(2).transpose(1, 2))
         return feats_embed, srcs
 
 def weights_init_kaiming(m):
@@ -168,6 +171,7 @@ class TimmModel(nn.Module):
                  
         super(TimmModel, self).__init__()
         
+        self.is_polar = is_polar
         self.backbone_name = model_name
 
         self.d_model = 128
@@ -185,10 +189,9 @@ class TimmModel(nn.Module):
         
         self.sample = psm
 
-        # when network error, use offline downloaded checkpoint
         if 'tiny' in self.backbone_name:
             if 'v2' in self.backbone_name:
-                self.bk_checkpoint = 'pretrained/convnextv2_tiny_22k_224_ema.pt' #'pretrained/convnextv2_tiny_22k_384_ema.pt'
+                self.bk_checkpoint = 'pretrained/convnextv2_tiny_22k_224_ema.pt' #'/mnt2/wangyuntao/pretrained/convnextv2_tiny_22k_384_ema.pt'
             else:
                self.bk_checkpoint = 'pretrained/convnext_tiny_22k_1k_224.pth' 
         elif 'base' in self.backbone_name:
@@ -217,7 +220,7 @@ class TimmModel(nn.Module):
         # Position and embed
         self.embed = BackboneEmbed(self.d_model, self.backbone.strides, self.backbone.num_channels, return_interm_layers=not self.single_features)
 
-        
+        #----------------------- global -----------------------# 
         # multi-scale self-cross attention for sat
         layer_sat_H = scTransformerLayer(self.d_model, self.nheads, self.ffn_dim, self.dropout, activation=self.activation, is_ffn=True)
         self.transformer_sat_H = scTransformerEncoder(layer_sat_H, num_layers=2)
@@ -230,10 +233,8 @@ class TimmModel(nn.Module):
         layer_grd_L = scTransformerLayer(self.d_model, self.nheads, self.ffn_dim, self.dropout, activation=self.activation, is_ffn=True, q_low=True)
         self.transformer_grd_L = scTransformerEncoder(layer_grd_L, num_layers=1)
 
-        #----------------------- global -----------------------# 
-        # 将特征投影到 out_dim * self.d_model向量空间，获得全局描述符
-        out_dim_g = 14
         
+        out_dim_g = 14
         self.feat_dim_sat, self.H_sat, self.W_sat = self._dim(self.backbone_name, self.backbone.strides, img_size=self.sat_size)
         in_dim_sat = sum(self.feat_dim_sat[1:]) +  self.in_dim_L if self.sample else sum(self.feat_dim_sat)
         self.proj_sat = nn.Linear(in_dim_sat, out_dim_g)
@@ -277,20 +278,23 @@ class TimmModel(nn.Module):
         self.ch_grd = nn.Sequential(*ch_grd)
 
         sat_k = [9, 7, 5, 3]
+        grd_k = [(7, 13), (5, 11), (3, 9), (1, 7)]
+        pad = [(3, 6), (2, 5), (1, 4), (0, 3)]
         sp_sat = [nn.Conv2d(1, 1, kernel_size=sat_k[i], padding=(sat_k[i] - 1) // 2)  for i in range(len(self.num_channles))]
         sp_grd = [nn.Conv2d(1, 1, kernel_size=(7, 13), padding=(3, 6)) for i in range(len(self.num_channles))]
         
         if self.sample:
             sp_sat[0] = nn.Conv2d(1, 1, kernel_size=(sat_k[0]*sat_k[0], 1), padding=((sat_k[0]*sat_k[0] - 1) // 2, 0))
-            sp_grd[0] = nn.Conv2d(1, 1, kernel_size=(7*13, 1), padding=((3*6 - 1) // 2, 0))
+            sp_grd[0] = nn.Conv2d(1, 1, kernel_size=(7*13, 1), padding=((7*13 - 1) // 2, 0))
 
         self.sp_sat = nn.Sequential(*sp_sat)
         self.sp_grd = nn.Sequential(*sp_grd)
+        # print(self.sp_sat, self.sp_grd)
 
         self.avg_pool = nn.AdaptiveAvgPool2d(1)
         self.sigmoid = nn.Sigmoid()
 
-        out_dim_l = self.em_dim - out_dim_g * self.d_model
+        out_dim_l = 256
         self.proj_local_sat = nn.Linear(sum(self.num_channles), out_dim_l)
         self.proj_local_grd = nn.Linear(sum(self.num_channles), out_dim_l)
 
@@ -313,7 +317,7 @@ class TimmModel(nn.Module):
 
     
     # @autocast()    
-    def forward(self, img1, img2=None):
+    def forward(self, img1, img2=None, input_id=0):
         if img2 is not None:
             grd_b = img1.shape[0]
             sat_b = img2.shape[0]
@@ -363,8 +367,8 @@ class TimmModel(nn.Module):
             sat_x.append(sat_src[-1])
             grd_x.append(grd_src[-1])
 
-            sat_local = self._geo_att(sat_x, [sat_L, sat_h1, sat_h2, sat_h3], proj=self.proj_gl_sat, ch_att=self.ch_sat, sp_att=self.sp_sat, h=self.H_sat, w=self.W_sat)
-            grd_local = self._geo_att(grd_x, [grd_L, grd_h1, grd_h2, grd_h3], proj=self.proj_gl_grd, ch_att=self.ch_grd, sp_att=self.sp_grd, h=self.H_grd, w=self.W_grd)
+            sat_local = self._gpab(sat_x, [sat_L, sat_h1, sat_h2, sat_h3], proj=self.proj_gl_sat, ch_att=self.ch_sat, sp_att=self.sp_sat, h=self.H_sat, w=self.W_sat)
+            grd_local = self._gpab(grd_x, [grd_L, grd_h1, grd_h2, grd_h3], proj=self.proj_gl_grd, ch_att=self.ch_grd, sp_att=self.sp_grd, h=self.H_grd, w=self.W_grd)
 
             sat_local = self.proj_local_sat(sat_local)
             grd_local = self.proj_local_grd(grd_local)
@@ -378,8 +382,8 @@ class TimmModel(nn.Module):
             return desc_sat.contiguous(), desc_grd.contiguous()      
               
         else:
-            b, _, h, w = img1.shape
-            if h == w:
+            if input_id == 2:
+                b = img1.shape[0]
                 sat_x = self.backbone(img1)
 
                 sat_e, sat_src = self.embed(sat_x)
@@ -406,7 +410,7 @@ class TimmModel(nn.Module):
                 # local
                 sat_h1, sat_h2, sat_h3 = self._reshape_feat(sat_H, self.H_sat[1:], self.W_sat[1:])
                 sat_x.append(sat_src[-1])
-                sat_local = self._geo_att(sat_x, [sat_L, sat_h1, sat_h2, sat_h3], proj=self.proj_gl_sat, ch_att=self.ch_sat, sp_att=self.sp_sat, h=self.H_sat, w=self.W_sat)
+                sat_local = self._gpab(sat_x, [sat_L, sat_h1, sat_h2, sat_h3], proj=self.proj_gl_sat, ch_att=self.ch_sat, sp_att=self.sp_sat, h=self.H_sat, w=self.W_sat)
                 sat_local = self.proj_local_sat(sat_local)
 
                 desc_sat = torch.cat([sat_global, sat_local], dim=-1)   
@@ -414,7 +418,8 @@ class TimmModel(nn.Module):
 
                 return desc_sat
                 
-            else:
+            elif input_id == 1:
+                b = img1.shape[0]
                 grd_x = self.backbone(img1)
                 grd_e, grd_src = self.embed(grd_x)
 
@@ -441,7 +446,7 @@ class TimmModel(nn.Module):
                 # local
                 grd_h1, grd_h2, grd_h3 = self._reshape_feat(grd_H, self.H_grd[1:], self.W_grd[1:])
                 grd_x.append(grd_src[-1])
-                grd_local = self._geo_att(grd_x, [grd_L, grd_h1, grd_h2, grd_h3], proj=self.proj_gl_grd, ch_att=self.ch_grd, sp_att=self.sp_grd, h=self.H_grd, w=self.W_grd)
+                grd_local = self._gpab(grd_x, [grd_L, grd_h1, grd_h2, grd_h3], proj=self.proj_gl_grd, ch_att=self.ch_grd, sp_att=self.sp_grd, h=self.H_grd, w=self.W_grd)
                 grd_local = self.proj_local_grd(grd_local)
 
                 desc_grd = torch.cat([grd_global, grd_local], dim=-1)
@@ -449,7 +454,11 @@ class TimmModel(nn.Module):
 
                 return desc_grd
             
-    
+            else:
+                print('set correct "input_id" (1 or 2) when each branch is evaluated independently')
+                raise ValueError
+
+
     def _reshape_feat(self, feat_H, H, W):
         p1 = H[0] * W[0]
         p2 = H[-1] * W[-1]
@@ -460,7 +469,7 @@ class TimmModel(nn.Module):
         return [feat_h1, feat_h2, feat_h3]
     
 
-    def gpab(self, local_feats, global_feats, proj, ch_att, sp_att, h, w):
+    def _gpab(self, local_feats, global_feats, proj, ch_att, sp_att, h, w):
         geo_att = []
         for i, feat in enumerate(local_feats):
             global_feat = proj[i](global_feats[i].transpose(1, 2))
@@ -471,15 +480,13 @@ class TimmModel(nn.Module):
             else:
                 global_feat = global_feat.reshape(b, c, h[i], w[i])
 
-            # channels atttion
+            # channels attrion
             avg_out = self.avg_pool(global_feat)
             att_ch = ch_att[i](avg_out)
 
-
-            # spatial atttion
+            # spatial attrion
             max_out, _ = torch.max(global_feat, dim=1, keepdim=True)
             att_sp = sp_att[i](max_out)
-
             m = feat * self.sigmoid(att_ch) * self.sigmoid(att_sp)
             m = feat + m
             m = self.avg_pool(m)
