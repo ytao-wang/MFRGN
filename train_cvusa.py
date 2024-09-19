@@ -34,6 +34,7 @@ class Configuration:
     
     # is use polar
     is_polar: bool = False
+    psm: bool = True
     image_size_sat = (256, 256)
     img_size_ground = (128, 512)
     
@@ -143,7 +144,7 @@ if __name__ == '__main__':
     model = TimmModel(config.model,
                       config.image_size_sat,
                       config.img_size_ground,
-                      psm=True,
+                      psm=config.psm,
                       is_polar=config.is_polar)
                           
     mean=[0.485, 0.456, 0.406]
