@@ -31,6 +31,9 @@ class Configuration:
     
     net: str = 'mfrgn_cvact_gpu4_0.0001_e50_autocast'
     net_file = 'model/mfrgn.py'
+
+    # Model
+    model: str = 'convnext_base.fb_in22k_ft_in1k' #'convnext_base.fb_in22k_ft_in1k_384'  convnext_tiny.fb_in22k_ft_in1k_384
     
     # is use polar
     is_polar: bool = False
