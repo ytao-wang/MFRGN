@@ -4,7 +4,7 @@ This repo contains the official implementation of the ACM MM 2024 paper
 
 <center>Yuntao Wang, Jinpu Zhang, Ruonan Wei, Wenbo Gao, Yuehuan Wang*</center>
 
-paper([OpenReview](https://openreview.net/forum?id=vaarOxGEU8&noteId=2tFfenhAPb))
+paper([MM'24](https://dl.acm.org/doi/10.1145/3664647.3681431))
 
 This code is based on the [Sample4Geo](https://github.com/Skyy93/Sample4Geo) framework. 
 
