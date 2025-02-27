@@ -25,8 +25,8 @@ std=[0.229, 0.224, 0.225]
 
 grd_transforms = A.Compose([Cut(cutting=0, p=1.0),
                             A.Resize(img_size_ground[0], img_size_ground[1], interpolation=cv2.INTER_AREA, p=1.0),
-                            A.Normalize(mean, std),
-                            ToTensorV2(),
+                            # A.Normalize(mean, std),
+                            # ToTensorV2(),
                             ])
 
 sat_transforms = A.Compose([
