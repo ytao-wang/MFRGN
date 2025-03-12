@@ -12,7 +12,8 @@ This code is based on the [Sample4Geo](https://github.com/Skyy93/Sample4Geo) fra
 
 
 ## News
-
+* **12 Mar 2025** We now support training and testing University-1652 by adding the `Class TimmModel_u` to mfrgn.py. It is worth noting that the full shared network is used here, which is different from the TimmModel (which only shares the backbone for ground and aerial view). And we provide our pretrained results: [checkpoint_u1652](https://pan.baidu.com/s/1VOV28zUM5wwwvwuILJgNGg) [BaiduYun, Password: 1234].
+  
 * **12 Dec 2024** We now provide supplementary results on University-1652.
 
 | Methods    | Drone2Sat<br />R@1 / AP | Sat2Drone<br />R@1 / AP |
