@@ -12,6 +12,7 @@ This code is based on the [Sample4Geo](https://github.com/Skyy93/Sample4Geo) fra
 
 
 ## News
+* **17 Sep 2025** We provide our all pretrained results on google drive: [CVUSA,CVACT,VIGOR](https://drive.google.com/file/d/1PU3jShnY9Jiq2NsLihDKiOUhneUu3tlS/view?usp=sharing) [3.06G, including distance_dict, convnext_base, the model with crop, sample, and crop&sample], [University-1652](https://drive.google.com/file/d/1h9LkKcXOK9ZmC0ClYWnl3wk5dvbgUkNz/view?usp=sharing) [0.6G, including D2S and S2D]
 * **12 Mar 2025** We now support training and testing University-1652 by adding the `Class TimmModel_u` to mfrgn.py. It is worth noting that the full shared network is used here, which is different from the TimmModel (which only shares the backbone for ground and aerial view). And we provide our pretrained results: [checkpoint_u1652](https://pan.baidu.com/s/1VOV28zUM5wwwvwuILJgNGg) [BaiduYun, Password: 1234].
   
 * **12 Dec 2024** We now provide supplementary results on University-1652.
